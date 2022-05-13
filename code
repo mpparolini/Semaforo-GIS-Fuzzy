@@ -1,0 +1,66 @@
+import requests
+import json
+import numpy as np
+import skfuzzy as fuzz
+from skfuzzy import control as ctrl
+import time
+from pyfirmata import Arduino, util
+
+import semaforo
+from semaforo import Semaforo
+
+
+def buscar_dados(latitude, longitude):
+    request = requests.get(f"https://api.tomtom.com/traffic/services/4/flowSegmentData/relative0/10/json?point={latitude}%2C{longitude}&unit=KMPH&openLr=false&key=lYuXbr3j9M5yOWXKoDnzjiS9x5f1gFAz")
+
+    res = json.loads(request.content)
+    print (res)
+    return res['flowSegmentData']['freeFlowSpeed']
+
+if __name__ == '__main__':
+    np.arange(0, 101, 1)
+    fluxoveiculos1 = ctrl.Antecedent(np.arange(0, 101, 1), 'fluxo1')
+    fluxoveiculos2 = ctrl.Antecedent(np.arange(0, 101, 1), 'fluxo2')
+    fluxoveiculos1.universe
+    ciclo = ctrl.Consequent(np.arange(0, 61, 1), 'ciclo')
+    fluxoveiculos1.automf(number=4, names=['muito lento', 'lento', 'moderado', 'alto'])
+    fluxoveiculos2.automf(number=4, names=['muito lento', 'lento', 'moderado', 'alto'])
+    ciclo['baixo'] = fuzz.trimf(ciclo.universe, [0, 20, 30])
+    ciclo['medio'] = fuzz.trimf(ciclo.universe, [20, 30, 40])
+    ciclo['alto'] = fuzz.trimf(ciclo.universe, [30, 40, 60])
+    regra1 = ctrl.Rule(fluxoveiculos1['muito lento'] & fluxoveiculos2['muito lento'], ciclo['medio'])
+    regra2 = ctrl.Rule(fluxoveiculos1['muito lento'] & fluxoveiculos2['lento'], ciclo['medio'])
+    regra3 = ctrl.Rule(fluxoveiculos1['muito lento'] & fluxoveiculos2['moderado'], ciclo['alto'])
+    regra4 = ctrl.Rule(fluxoveiculos1['muito lento'] & fluxoveiculos2['alto'], ciclo['alto'])
+    regra5 = ctrl.Rule(fluxoveiculos1['lento'] & fluxoveiculos2['muito lento'], ciclo['alto'])
+    regra6 = ctrl.Rule(fluxoveiculos1['lento'] & fluxoveiculos2['lento'], ciclo['alto'])
+    regra7 = ctrl.Rule(fluxoveiculos1['lento'] & fluxoveiculos2['moderado'], ciclo['medio'])
+    regra8 = ctrl.Rule(fluxoveiculos1['lento'] & fluxoveiculos2['alto'], ciclo['alto'])
+    regra9 = ctrl.Rule(fluxoveiculos1['moderado'] & fluxoveiculos2['muito lento'], ciclo['alto'])
+    regra10 = ctrl.Rule(fluxoveiculos1['moderado'] & fluxoveiculos2['lento'], ciclo['medio'])
+    regra11 = ctrl.Rule(fluxoveiculos1['moderado'] & fluxoveiculos2['moderado'], ciclo['medio'])
+    regra12 = ctrl.Rule(fluxoveiculos1['moderado'] & fluxoveiculos2['alto'], ciclo['alto'])
+    regra13 = ctrl.Rule(fluxoveiculos1['alto'] & fluxoveiculos2['muito lento'], ciclo['baixo'])
+    regra14 = ctrl.Rule(fluxoveiculos1['alto'] & fluxoveiculos2['moderado'], ciclo['baixo'])
+    regra15 = ctrl.Rule(fluxoveiculos1['alto'] & fluxoveiculos2['alto'], ciclo['baixo'])
+    sistema_controle = ctrl.ControlSystem([regra1, regra2, regra3, regra4, regra5, regra6, regra7, regra8, regra9, regra10, regra11, regra12, regra13,regra14, regra15, regra16])
+    sistema = ctrl.ControlSystemSimulation(sistema_controle)
+    print('Tentando conectar com o Arduino...')
+    arduino = Arduino('COM6')
+    print('Conectado com Sucesso!!!')
+
+    primeiraVez = True
+
+    regra16 = ctrl.Rule(fluxoveiculos1['alto'] & fluxoveiculos2['alto'], ciclo['medio'])
+    while True:
+        sistema.input['fluxo1'] = buscar_dados(-23.204203, -45.891510)
+        sistema.input['fluxo2'] = buscar_dados(-23.177973, -45.811712)
+        sistema.compute()
+
+        if primeiraVez:
+            semaforo = Semaforo(sistema.output['ciclo'], arduino)
+            semaforo.run()
+            primeiraVez = False
+        else:
+            semaforo.newCicle(sistema.output['ciclo'])
+        time.sleep(40)from pyfirmata import Arduino, util
