@@ -1,3 +1,4 @@
+# Parte 1 para puxar a API e desenvolver o algoritmo de tomada de decisão utilizando Fuzzy
 import requests
 import json
 import numpy as np
@@ -64,3 +65,178 @@ if __name__ == '__main__':
         else:
             semaforo.newCicle(sistema.output['ciclo'])
         time.sleep(40)from pyfirmata import Arduino, util
+        
+        
+    # Algoritmo para fazer o ciclo do semáforo
+    
+    import time
+import pyfirmata
+import threading
+
+
+class Semaforo:
+
+    def __init__(self, tverdefase1, arduino):
+        self.Uno = arduino
+        self.ard_button = self.Uno.digital[2]
+        self.tamarelo = 2
+        self.ciclototal = 60
+        self.tperc = 2
+        self.tpercTotal = 6
+        self.pedestre_verde = 10
+        self.botao = False
+        self.tverde1 = tverdefase1
+        self.tverde2 = (self.ciclototal - tverdefase1) - self.tpercTotal
+        self.tvermelho1 = (self.ciclototal - tverdefase1) - self.tperc
+        self.tvermelho2 = tverdefase1 + self.tamarelo
+        self.attDados = False
+        self.attTverdeTemp = None
+
+    def newCicle(self, tverdefase1):
+        self.attDados = True
+        self.attTverdeTemp = tverdefase1
+
+    def attNewCicle(self, tverdefase1):
+        self.tamarelo = 2
+        self.ciclototal = 60
+        self.tperc = 2
+        self.tpercTotal = 6
+        self.pedestre_verde = 10
+        self.botao = False
+        self.tverde1 = tverdefase1
+        self.tverde2 = (self.ciclototal - tverdefase1) - self.tpercTotal
+        self.tvermelho1 = (self.ciclototal - tverdefase1) - self.tperc
+        self.tvermelho2 = tverdefase1 + self.tamarelo
+        self.attDados = False
+        self.attTverdeTemp = None
+
+    def run(self):
+        # Start iterator to receive input data
+        it = pyfirmata.util.Iterator(self.Uno)
+        it.start()
+        # Setup LEDs and button
+        self.ard_button.mode = pyfirmata.INPUT
+
+        threadButton = threading.Thread(target=self.buttonListener, args=(1,))
+        threadCicloSemaforo = threading.Thread(target=self.ciclo_semaforo, args=(1,))
+
+        threadButton.start()
+        threadCicloSemaforo.start()
+
+    def ciclo_semaforo(self, x):
+        cont = 0
+        while (cont < 1000):
+            if not self.botao:
+                if (self.attDados):
+                    print('ATUALIZANDO TEMPO DO SEMÁFORO')
+                    self.attNewCicle(self.attTverdeTemp)
+
+                # UM CICLO DE 60 SEGUNDOS
+                self.desligar_pedestre_verde()
+                self.ligar_vermelho2()
+                self.ligar_verde1()
+                self.ligar_pedestre_vermelho()
+                time.sleep(self.tverde1)
+                self.ligar_amarelo1()
+                self.ligar_pedestre_vermelho()
+                time.sleep(self.tamarelo)
+                self.ligar_vermelho1()
+                self.ligar_verde2()
+                self.ligar_pedestre_vermelho()
+                time.sleep(self.tverde2)
+                self.ligar_amarelo2()
+                self.ligar_pedestre_vermelho()
+                time.sleep(self.tamarelo)
+                self.ligar_vermelho2()
+                self.ligar_pedestre_vermelho()
+                time.sleep(self.tperc)
+                cont += 1
+
+
+            else:
+                print('Ciclo do pedestre')
+                self.desligar_pedestre_vermelho()
+                self.ligar_vermelho2()
+                self.ligar_vermelho1()
+                self.ligar_pedestre_verde()
+                time.sleep(self.pedestre_verde)
+                self.botao = False
+
+    def buttonListener(self, x):
+        while True:
+            time.sleep(0.1)
+            button_state = self.ard_button.read()
+            if button_state != 0:
+                print('BOTÃO PRESSIONADO!')
+                self.botao = True
+
+    def ligar_verde1(self):
+        self.apagar_todos1()
+        print("LIGANDO O VERDE 1")
+        self.Uno.digital[11].write(1)
+
+    def ligar_amarelo1(self):
+        self.apagar_todos1()
+        print("LIGANDO O AMARELO 1")
+        self.Uno.digital[12].write(1)
+
+    def ligar_vermelho1(self):
+        self.apagar_todos1()
+        print("LIGANDO O VERMELHO 1")
+        self.Uno.digital[13].write(1)
+
+    def apagar_todos1(self):
+        print('APAGA TODAS AS LUZES 1')
+        self.Uno.digital[11].write(0)
+        self.Uno.digital[12].write(0)
+        self.Uno.digital[13].write(0)
+
+    def ligar_verde2(self):
+        self.apagar_todos2()
+        print("LIGANDO O VERDE 2")
+        self.Uno.digital[8].write(1)
+        self.Uno.digital[5].write(1)
+
+    def ligar_amarelo2(self):
+        self.apagar_todos2()
+        print("LIGANDO O AMARELO 2")
+        self.Uno.digital[9].write(1)
+        self.Uno.digital[6].write(1)
+
+    def ligar_vermelho2(self):
+        self.apagar_todos2()
+        print("LIGANDO O VERMELHO 2")
+        self.Uno.digital[10].write(1)
+        self.Uno.digital[7].write(1)
+
+    def apagar_todos2(self):
+        print('APAGA TODAS AS LUZES 2')
+        self.Uno.digital[5].write(0)
+        self.Uno.digital[6].write(0)
+        self.Uno.digital[7].write(0)
+        self.Uno.digital[8].write(0)
+        self.Uno.digital[9].write(0)
+        self.Uno.digital[10].write(0)
+
+    def ligar_pedestre_verde(self):
+        self.Uno.digital[3].write(1)
+
+    def desligar_pedestre_verde(self):
+        self.Uno.digital[3].write(0)
+
+    def ligar_pedestre_vermelho(self):
+        self.Uno.digital[4].write(1)
+
+    def desligar_pedestre_vermelho(self):
+        self.Uno.digital[4].write(0)
+
+    def __str__(self) -> str:
+        return f"""Tempo amarelo: {self.tamarelo}\nCiclo Total: {self.ciclototal}\n Tempo de percepção: {self.tperc}\n
+        Tempo de percepção total: {self.tpercTotal}\n
+        Tempo pedestre_verde: {self.pedestre_verde}\n
+        Botão: {self.botao}\n
+        Tempo verde fase 1: {self.tverde1}\n
+        Tempo verde fase 2: {self.tverde2}\n
+        Tempo vermelho fase 1: {self.tvermelho1}\n
+        Tempo vermelho fase 2: {self.tvermelho2}\n
+"""
